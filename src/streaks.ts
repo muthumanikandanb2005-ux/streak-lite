@@ -17,5 +17,5 @@ export function currentStreak(habit: Habit, today = new Date()): number {
 }
 
 export function isCompleteOn(habit: Habit, dateKey: string): boolean {
-  return habit.completions.includes(dateKey);
+  return new Set(habit.completions).has(dateKey);
 }
