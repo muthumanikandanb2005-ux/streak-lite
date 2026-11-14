@@ -17,7 +17,7 @@ import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { lastSevenDateKeys, localDateKey, weekdayLabel } from "./src/dates";
 import { syncAllReminders } from "./src/notifications";
 import { createHabit, loadHabits, saveHabits } from "./src/storage";
-import { currentStreak, isCompleteOn } from "./src/streaks";
+import { currentStreak } from "./src/streaks";
 import type { Habit } from "./src/types";
 
 type EditorState = {
@@ -66,6 +66,10 @@ export default function App() {
   }, [habits, ready]);
 
   const visibleHabits = habits.filter((habit) => !habit.archived);
+  const completionLookup = useMemo(
+    () => new Map(visibleHabits.map((habit) => [habit.id, new Set(habit.completions)])),
+    [visibleHabits]
+  );
 
   function openNew() {
     setEditor(emptyEditor);
@@ -89,12 +93,17 @@ export default function App() {
         if (item.id !== habit.id) {
           return item;
         }
-        const already = item.completions.includes(today);
+
+        const completionSet = new Set(item.completions);
+        if (completionSet.has(today)) {
+          completionSet.delete(today);
+        } else {
+          completionSet.add(today);
+        }
+
         return {
           ...item,
-          completions: already
-            ? item.completions.filter((date) => date !== today)
-            : [...item.completions, today],
+          completions: Array.from(completionSet),
         };
       })
     );
@@ -175,8 +184,9 @@ export default function App() {
       ) : (
         <ScrollView contentContainerStyle={styles.list}>
           {visibleHabits.map((habit) => {
+            const completionSet = completionLookup.get(habit.id) ?? new Set<string>();
             const streak = currentStreak(habit);
-            const doneToday = isCompleteOn(habit, today);
+            const doneToday = completionSet.has(today);
             return (
               <View key={habit.id} style={styles.card}>
                 <View style={styles.cardTop}>
@@ -201,7 +211,7 @@ export default function App() {
                 </View>
                 <View style={styles.weekRow}>
                   {week.map((dateKey) => {
-                    const done = isCompleteOn(habit, dateKey);
+                    const done = completionSet.has(dateKey);
                     const isToday = dateKey === today;
                     return (
                       <View key={dateKey} style={styles.day}>
@@ -428,7 +438,11 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   modalBackdrop: {
-    ...StyleSheet.absoluteFillObject,
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
     backgroundColor: "rgba(31, 26, 22, 0.35)",
   },
   sheet: {
